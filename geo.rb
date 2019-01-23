@@ -2,31 +2,32 @@ $p_delta_mode = false
 # $p_delta_mode = true
 # $p_delta_mode = true
 # $p_delta_mode = false
-$delta_seq = 0.1
-
-$p_sel = nil
-
-$p_country = ''
 
 def parse_args
+  args = {}
+  args[:sel] = nil
+  args[:country] = ''
+  args[:delta_seq] = 0.1
+
   # command = ARGV[0]  
   abort('Yoush should provide country code (examples: US, RU, FR)') if ARGV.count == 0
   not_keys = ARGV.select{ |item| item[0] != '-' }
   # keys = ARGV.select{ |item| item[0] == '-' }.map{ |item| item.gsub('-', '') }
   keys = ARGV.select{ |item| item[0] == '-' }
-  $p_country = not_keys[0]
+  args[:country] = not_keys[0]
   if not_keys.count > 1
-    $p_delta_mode = true
-    $delta_seq = not_keys[1].to_f
+    args[:delta_mode] = true
+    args[:delta_seq] = not_keys[1].to_f
   end
 
-  $p_sel = keys.select{ |item| item[0..3] == '-sel' }[0]
-  if !$p_sel.nil?
-    $p_sel = $p_sel.gsub('-sel', '')
-    $p_sel = $p_sel.split(',').map(&:to_f)
+  p_sel = keys.select{ |item| item[0..3] == '-sel' }[0]
+  if !p_sel.nil?
+    p_sel = p_sel.gsub('-sel', '')
+    p_sel = p_sel.split(',').map(&:to_f)
+    args[:sel] = p_sel
   end
+  args
 end
-parse_args()
 
 tries = 0
 succesfull = 0
@@ -42,16 +43,16 @@ require 'rmagick'
 require 'rubygems'
 require 'geocoder'
 
-$delta_arr = []
 def reload_delta
   p 'Loading delta'
-  delta_file = "rec/#{$p_country}.csv"
+  delta_file = "rec/#{parse_args[:country]}.csv"
   abort 'no delta file, exiting' if !File.file?(delta_file)
-  data = []
+  delta_arr = []
   CSV.foreach(delta_file, headers: false) do |row|
-    $delta_arr << row
+    delta_arr << row
     # data << row.to_hash
   end
+  delta_arr
 end
 
 p("Loading borders")
@@ -65,36 +66,32 @@ if !File.file?(SHAPE_FILE)
     exit
 end
 
-def get_bb
+def get_borders(iso2)
   RGeo::Shapefile::Reader.open('TM_WORLD_BORDERS-0.3.shp') do |file|
     puts "File contains #{file.num_records} records."
     file.each do |record|
-      if record.attributes['ISO2'] == $p_country
-        bb = RGeo::Cartesian::BoundingBox.create_from_geometry(record.geometry)
-        return bb
+      if record.attributes['ISO2'] == iso2
+        return  RGeo::Cartesian::BoundingBox.create_from_geometry(record.geometry)
       end
     end
-    # file.rewind
-    # record = file.next
-    # puts "First record geometry was: #{record.geometry.as_text}"
   end
 end
 
-def random_coord_in_bb(bb)
+def random_coord_within_borders(borders)
   factory = RGeo::Cartesian.factory  
   rand_x = rand_y = nil
-  reload_delta if $p_delta_mode
+  # reload_delta if parse_args[:delta_mode]
   while true
-    if !$p_sel.nil?
-      rand_x = rand(($p_sel[1].to_f - $delta_seq)..($p_sel[1].to_f + $delta_seq))
-      rand_y = rand(($p_sel[0].to_f - $delta_seq)..($p_sel[0].to_f + $delta_seq))
-    elsif !$p_delta_mode
-      rand_x = rand(bb.min_x..bb.max_x)
-      rand_y = rand(bb.min_y..bb.max_y)
+    if !parse_args[:sel].nil?
+      rand_x = rand((parse_args[:sel][1].to_f - parse_args[:delta_seq])..(parse_args[:sel][1].to_f + parse_args[:delta_seq]))
+      rand_y = rand((parse_args[:sel][0].to_f - parse_args[:delta_seq])..(parse_args[:sel][0].to_f + parse_args[:delta_seq]))
+    elsif !parse_args[:delta_mode]
+      rand_x = rand(borders.min_x..borders.max_x)
+      rand_y = rand(borders.min_y..borders.max_y)
     else
-      delta_rand = $delta_arr.sample
-      rand_x = rand((delta_rand[1].to_f - $delta_seq)..(delta_rand[1].to_f + $delta_seq))
-      rand_y = rand((delta_rand[0].to_f - $delta_seq)..(delta_rand[0].to_f + $delta_seq))
+      delta_rand = reload_delta.sample
+      rand_x = rand((delta_rand[1].to_f - parse_args[:delta_seq])..(delta_rand[1].to_f + parse_args[:delta_seq]))
+      rand_y = rand((delta_rand[0].to_f - parse_args[:delta_seq])..(delta_rand[0].to_f + parse_args[:delta_seq]))
     end
 
     # US? (don't remember)
@@ -102,7 +99,7 @@ def random_coord_in_bb(bb)
     # rand_x = -91.8236504  
 
     point1 = factory.point(rand_x, rand_y)
-    cont = bb.contains?(point1)
+    cont = borders.contains?(point1)
 
     if cont
       reload_delta if $p_delta_mode
@@ -168,11 +165,11 @@ def check2(lat, lng)
 end
 
 p "Finding country"
-bb = get_bb()
+borders = get_borders(parse_args[:country])
 
 while true
   tries += 1
-  coord = random_coord_in_bb(bb)
+  coord = random_coord_within_borders(borders)
   # if test_google(coord[0], coord[1])
   r = check2(coord[0], coord[1])
   if r
@@ -196,27 +193,38 @@ while true
       # return false
     end
 
-    if geocode_country_code_upcase != $p_country
+    if geocode_country_code_upcase != parse_args[:country]
       p [__LINE__, 'reverse geocode returned different country code: ' + geocode_country_code_upcase.to_s].inspect
     else
       succesfull += 1
       last_succesfull = Time.new
       p '!!! found !!!'
-      sese = $p_sel.nil? ? '' : '.s'
-      File.open("rec/#{$p_country}#{sese}.csv",'a') { |file|
-        # file.puts "#{coord[0]},#{coord[1]},#{DateTime.now.new_offset(0).to_s}"
-        l = [coord[0], coord[1], DateTime.now.new_offset(0).to_s, geocode_country_code, d["display_name"]]
+      sese = parse_args[:sel].nil? ? '' : '.s'
+      File.open("rec/#{parse_args[:country]}#{sese}.csv",'a') { |file|
+        l = [
+          coord[0],
+          coord[1],
+          DateTime.now.new_offset(0).to_s,
+          geocode_country_code,
+          d["display_name"]]
         file.puts CSV.generate_line(l)
       }
-      File.open("rec/#{$p_country}#{sese}.json",'a') { |file|      
-        tj = {lat: coord[0], lng: coord[1], near: $p_sel, geocode_country_code: geocode_country_code, geocode_display_name: d["display_name"], created_at: DateTime.now.new_offset(0).to_s, geocode_json: geocode_json}
+      File.open("rec/#{parse_args[:country]}#{sese}.json",'a') { |file|      
+        tj = {
+          lat: coord[0],
+          lng: coord[1],
+          near: parse_args[:sel],
+          geocode_country_code: geocode_country_code,
+          geocode_display_name: d["display_name"],
+          created_at: DateTime.now.new_offset(0).to_s,
+          geocode_json: geocode_json
+        }
         file.puts tj.to_json
       }
-      File.open("rec/#{$p_country}#{sese}.htm",'a') {|file| file.puts "<p>#{d["display_name"]}: <a href=\"#{uuu}\">#{uuu}</a></p>\r\n" }
-      # break
+      File.open("rec/#{parse_args[:country]}#{sese}.htm",'a') {|file| file.puts "<p>#{d["display_name"]}: <a href=\"#{uuu}\">#{uuu}</a></p>\r\n" }
     end
   end
   succes_rate = (succesfull.to_f / tries.to_f * 100).to_i.to_s + '%'
-  p [__LINE__, ['$p_country', '$p_sel', 'tries', 'succesfull', 'succes_rate', 'last_succesfull'].map{ |e| { e => eval(e) } }.inject(:merge)]
+  p [__LINE__, ['parse_args[:country]', 'parse_args[:sel]', 'tries', 'succesfull', 'succes_rate', 'last_succesfull'].map{ |e| { e => eval(e) } }.inject(:merge)]
   sleep 1
 end
