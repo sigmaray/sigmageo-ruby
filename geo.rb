@@ -67,10 +67,10 @@ require 'geocoder'
 
 def load_csv
   p [__LINE__, 'Loading CSV']
-  delta_file = "rec/#{$args[:iso2]}.csv"
-  abort 'no delta file, exiting' if !File.file?(delta_file)
+  file = "rec/#{$args[:iso2]}.csv"
+  abort 'no file, exiting' if !File.file?(file)
   csv_arr = []
-  CSV.foreach(delta_file, headers: false) do |row|
+  CSV.foreach(file, headers: false) do |row|
     csv_arr << row
   end
   csv_arr
@@ -88,7 +88,7 @@ def get_borders(iso2)
     puts "File contains #{file.num_records} records."
     file.each do |record|
       if record.attributes['ISO2'] == iso2
-        return  RGeo::Cartesian::BoundingBox.create_from_geometry(record.geometry)
+        return RGeo::Cartesian::BoundingBox.create_from_geometry(record.geometry)
       end
     end
   end
