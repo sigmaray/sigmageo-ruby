@@ -1,20 +1,21 @@
 def parse_args
+  abort('You should provide country ISO2 code (examples: US, RU, FR)') if ARGV.count == 0
+
+  keys = ARGV.select{ |item| item[0] == '-' }
+  not_keys = ARGV.select{ |item| item[0] != '-' }
+
   args = {}
   args[:country] = ''
   args[:near_coordinate] = nil
   args[:near_file] = false
   args[:delta] = 0.1
-
-  # command = ARGV[0]  
-  abort('You should provide country code (examples: US, RU, FR)') if ARGV.count == 0
-  not_keys = ARGV.select{ |item| item[0] != '-' }
-  # keys = ARGV.select{ |item| item[0] == '-' }.map{ |item| item.gsub('-', '') }
-  keys = ARGV.select{ |item| item[0] == '-' }
+    
   args[:country] = not_keys[0]
-  if not_keys.count > 1
-    args[:near_file] = true
-    args[:delta] = not_keys[1].to_f
-  end
+
+  # if not_keys.count > 1
+  #   args[:near_file] = true
+  #   args[:delta] = not_keys[1].to_f
+  # end
 
   p_delta = keys.select{ |item| item[0..4] == '-delta' }[0]
   if !p_delta.nil?
@@ -22,20 +23,21 @@ def parse_args
     args[:delta] = p_delta.to_f
   end  
 
-  args[:near_file] = !((keys.select{ |item| item.start_with?('-near_file' }[0]).nil?)
+  args[:near_file] = !keys.select{ |item| item.start_with?('-near_file') }[0].nil?
 
   p_near_coordinate = keys.select{ |item| item.start_with?('-near_coordinate') }[0]
   if !p_near_coordinate.nil?
     p_near_coordinate = p_near_coordinate.gsub('-near_coordinate', '')
     p_near_coordinate = p_near_coordinate.split(',').map(&:to_f)
+
+    abort('Wrong options passed for -near_coordinate') if p_near_coordinate.count != 2
+
     args[:near_coordinate] = p_near_coordinate
   end
 
   if args[:near_coordinate] && args[:near_file]
     abort '-near_coordinate and -near_file cannot be provided at the same time'
   end
-
-  # raise args.inspect
 
   args
 end
@@ -47,34 +49,27 @@ last_succesfull = nil
 require 'rubygems'
 require 'rgeo'
 require 'rgeo/shapefile'
-
 require 'http'
 require 'rmagick'
-
 require 'rubygems'
 require 'geocoder'
 
-def reload_delta
-  p 'Loading delta'
+def load_csv
+  p [__LINE__, 'Loading CSV']
   delta_file = "rec/#{parse_args[:country]}.csv"
   abort 'no delta file, exiting' if !File.file?(delta_file)
-  delta_arr = []
+  csv_arr = []
   CSV.foreach(delta_file, headers: false) do |row|
-    delta_arr << row
-    # data << row.to_hash
+    csv_arr << row
   end
-  delta_arr
+  csv_arr
 end
 
-p("Loading borders")
-# SHAPE_FILE = "TM_WORLD_BORDERS-0.3.shp"
+p [__LINE__, "Loading borders"]
+
 SHAPE_FILE = "TM_WORLD_BORDERS_SIMPL-0.3.shp"
 if !File.file?(SHAPE_FILE)
-    p("Cannot find " + SHAPE_FILE + ". Please download it from " +
-          "http://thematicmapping.org/downloads/world_borders.php " +
-          "and try again.")
-    # sys.exit()
-    exit
+  abort("Cannot find " + SHAPE_FILE + ". Please download it from " + "http://thematicmapping.org/downloads/world_borders.php " + "and try again.")
 end
 
 def get_borders(iso2)
@@ -91,26 +86,22 @@ end
 def random_coord_within_borders(borders)
   factory = RGeo::Cartesian.factory  
   rand_x = rand_y = nil
-  # reload_delta if parse_args[:near_file]
+
   while true
-    if !parse_args[:near_coordinate].nil?
+    if parse_args[:near_coordinate]
       rand_x = rand((parse_args[:near_coordinate][1].to_f - parse_args[:delta])..(parse_args[:near_coordinate][1].to_f + parse_args[:delta]))
-      rand_y = rand((parse_args[:near_coordinate][0].to_f - parse_args[:delta])..(parse_args[:near_coordinate][0].to_f + parse_args[:delta]))
-    elsif !parse_args[:near_file]
-      rand_x = rand(borders.min_x..borders.max_x)
-      rand_y = rand(borders.min_y..borders.max_y)
-    else
-      delta_rand = reload_delta.sample
+      rand_y = rand((parse_args[:near_coordinate][0].to_f - parse_args[:delta])..(parse_args[:near_coordinate][0].to_f + parse_args[:delta]))    
+    elsif parse_args[:near_file]
+      delta_rand = load_csv.sample
       rand_x = rand((delta_rand[1].to_f - parse_args[:delta])..(delta_rand[1].to_f + parse_args[:delta]))
       rand_y = rand((delta_rand[0].to_f - parse_args[:delta])..(delta_rand[0].to_f + parse_args[:delta]))
+    else
+      rand_x = rand(borders.min_x..borders.max_x)
+      rand_y = rand(borders.min_y..borders.max_y)
     end
 
-    # US? (don't remember)
-    # rand_y = 45.2796196
-    # rand_x = -91.8236504  
-
-    point1 = factory.point(rand_x, rand_y)
-    cont = borders.contains?(point1)
+    point = factory.point(rand_x, rand_y)
+    cont = borders.contains?(point)
 
     if cont
       break
@@ -129,7 +120,7 @@ def test_google(rand_y, rand_x)
   country_hits += 1
   lat_lon = "#{rand_y},#{rand_x}"
   url = GOOGLE_URL + "&location=" + lat_lon
-  p [__LINE__, {url: url}].inspect  
+  p [__LINE__, {url: url}]
 
   begin
     source = Magick::Image.read(url).first
@@ -137,7 +128,7 @@ def test_google(rand_y, rand_x)
     source.destroy!
     return (color != '#E4E3DF' && color != '#E0E0E0') ? [lat, lng] : false
   rescue Exception => err
-    p [__LINE__, {err: err}].inspect
+    p [__LINE__, {err: err}]
     return false
   end
 end
@@ -147,34 +138,33 @@ def check2(lat, lng)
 
   begin
     res = HTTP.get(url).to_s
-    if res.include? "Search returned no images"
-      p [__LINE__, 'no images', {lat: lat, lng: lng, combined: "#{lat},#{lng}", url: url}].inspect
+    if res.include? "Search returned no images."
+      p [__LINE__, 'Google returned no.', {lat: lat, lng: lng, combined: "#{lat},#{lng}", url: url}]
       return false
     else
-      # abort('@@url: ' + url)
-      p [__LINE__, 'found', {lat: lat, lng: lng, combined: "#{lat},#{lng}"}].inspect
+      p [__LINE__, 'Google returned yes.', {lat: lat, lng: lng, combined: "#{lat},#{lng}"}]
       ###############
       # Trying to find in res
       splitted = lat.to_s.split('.')
       regexpr = splitted[0] + '\.' + splitted [1][0..1] + '.+\]'
       regres = Regexp.new(regexpr).match(res)[0]
       if !regres.nil?
-        p 'found by regex'
+        p [__LINE__, 'Found by regex.']
         ar = regres.chomp(']').split(',')
         return [ar[0].to_f, ar[1].to_f]
         # return true
       else
-        p 'not by regex'
+        p [__LINE__, 'Not found by regex.']
         return false
       end
     end    
   rescue Exception => err
-    p [__LINE__, {err: err}].inspect
+    p [__LINE__, {err: err}]
     return false
   end
 end
 
-p "Finding country"
+p [__LINE__, "Finding country borders"]
 borders = get_borders(parse_args[:country])
 
 while true
@@ -199,14 +189,14 @@ while true
       geocode_address = d['address']['geocode_address']
       geocode_country_code_upcase = d['address']['country_code'].upcase
     rescue Exception => err
-      p [__LINE__, 'Failed to do reverse geocoding.', {err: err}].inspect
-      # return false
+      p [__LINE__, 'Failed to do reverse geocoding.', {err: err}]
+      next
     end
 
     if geocode_country_code_upcase != parse_args[:country]
-      p [__LINE__, 'reverse geocode returned different country code: ' + geocode_country_code_upcase.to_s].inspect
+      p [__LINE__, 'Reverse geocode returned different country code: ' + geocode_country_code_upcase.to_s]
     else
-      p [__LINE__, '!!! found !!!']
+      p [__LINE__, '!!! Found !!!']
       succesfull += 1
       last_succesfull = Time.new
       sese = parse_args[:near_coordinate].nil? ? '' : '.s'
