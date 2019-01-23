@@ -52,10 +52,6 @@ end
 
 $args = parse_args
 
-tries = 0
-succesfull = 0
-last_succesfull = nil
-
 require 'rubygems'
 require 'rgeo'
 require 'rgeo/shapefile'
@@ -65,9 +61,9 @@ require 'rubygems'
 require 'geocoder'
 
 def load_csv
-  p [__LINE__, 'Loading CSV']
+  p [__LINE__, 'Loading CSV file.']
   file = "rec/#{$args[:iso2]}.csv"
-  abort 'no file, exiting' if !File.file?(file)
+  abort 'No CSV file, exiting.' if !File.file?(file)
   csv_arr = []
   CSV.foreach(file, headers: false) do |row|
     csv_arr << row
@@ -84,7 +80,7 @@ end
 
 def get_country_borders(iso2)
   RGeo::Shapefile::Reader.open('TM_WORLD_BORDERS-0.3.shp') do |file|
-    puts "File contains #{file.num_records} records."
+    p [__LINE__, "File contains #{file.num_records} records."]
     file.each do |record|
       if record.attributes['ISO2'] == iso2
         return RGeo::Cartesian::BoundingBox.create_from_geometry(record.geometry)
@@ -150,10 +146,8 @@ def test_google2(lat, lng)
       return false
     else
       p [__LINE__, 'Google returned yes.', {lat: lat, lng: lng, combined: "#{lat},#{lng}"}]
-      ###############
-      # Trying to find in response
-      splitted = lat.to_s.split('.')
-      reg_expr = splitted[0] + '\.' + splitted [1][0..1] + '.+\]'
+      splitted_lat = lat.to_s.split('.')
+      reg_expr = splitted_lat[0] + '\.' + splitted_lat [1][0..1] + '.+\]'
       reg_results = Regexp.new(reg_expr).match(response)[0]
       if !reg_results.blank
         p [__LINE__, 'Found by regex.']
@@ -173,6 +167,11 @@ end
 
 p [__LINE__, "Finding country borders"]
 country_borders = get_country_borders($args[:iso2])
+
+
+tries = 0
+succes_count  = 0
+succes_last_time = nil
 
 while true
   tries += 1
@@ -204,8 +203,8 @@ while true
       p [__LINE__, 'Reverse geocode returned different country code: ' + geocode_country_code_upcase.to_s]
     else
       p [__LINE__, '!!! Found !!!']
-      succesfull += 1
-      last_succesfull = Time.new
+      succes_last_time = Time.new
+      succes_count  += 1
       near_coordinate = $args[:near_coordinate].blank? ? '' : '.near-coordinate'
       near_file = $args[:near_file].blank? ? '' : '.near-file'
       File.open("rec/#{$args[:iso2]}#{near_coordinate}#{near_file}.csv",'a') { |file|
@@ -233,7 +232,7 @@ while true
       File.open("rec/#{$args[:iso2]}#{near_coordinate}#{near_file}.htm",'a') {|file| file.puts "<p>#{d["display_name"]}: <a href=\"#{uuu}\">#{uuu}</a></p>\r\n" }
     end
   end
-  succes_rate = (succesfull.to_f / tries.to_f * 100).to_i.to_s + '%'
-  p [__LINE__, ['$args[:iso2]', '$args[:near_coordinate]', 'tries', 'succesfull', 'succes_rate', 'last_succesfull'].map{ |e| { e => eval(e) } }.inject(:merge)]
+  succes_rate = (succes_count.to_f / tries.to_f * 100).to_i.to_s + '%'
+  p [__LINE__, ['$args[:iso2]', '$args[:near_coordinate]', 'tries', 'succes_count', 'succes_rate', 'succes_last_time'].map{ |e| { e => eval(e) } }.inject(:merge)]
   sleep 1
 end
