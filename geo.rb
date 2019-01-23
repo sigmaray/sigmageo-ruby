@@ -145,20 +145,20 @@ def test_google2(lat, lng)
   url = "https://maps.googleapis.com/maps/api/js/GeoPhotoService.SingleImageSearch?pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0!2m4!1m2!3d#{lat}!4d#{lng}!2d100!3m18!2m2!1sen!2sUS!9m1!1e2!11m12!1m3!1e2!2b1!3e2!1m3!1e3!2b1!3e2!1m3!1e10!2b1!3e2!4m6!1e1!1e2!1e3!1e4!1e8!1e6&callback=_xdc_._2kz7bz"
 
   begin
-    res = HTTP.get(url).to_s
-    if res.include? "Search returned no images."
+    response = HTTP.get(url).to_s
+    if response.include? "Search returned no images."
       p [__LINE__, 'Google returned no.', {lat: lat, lng: lng, combined: "#{lat},#{lng}", url: url}]
       return false
     else
       p [__LINE__, 'Google returned yes.', {lat: lat, lng: lng, combined: "#{lat},#{lng}"}]
       ###############
-      # Trying to find in res
+      # Trying to find in response
       splitted = lat.to_s.split('.')
-      regexpr = splitted[0] + '\.' + splitted [1][0..1] + '.+\]'
-      regres = Regexp.new(regexpr).match(res)[0]
-      if !regres.nil?
+      reg_expr = splitted[0] + '\.' + splitted [1][0..1] + '.+\]'
+      reg_results = Regexp.new(reg_expr).match(response)[0]
+      if !reg_results.blank
         p [__LINE__, 'Found by regex.']
-        ar = regres.chomp(']').split(',')
+        ar = reg_results.chomp(']').split(',')
         return [ar[0].to_f, ar[1].to_f]
         # return true
       else
