@@ -39,7 +39,6 @@ def parse_args
     # abort("Where is my hat?!") 
   end
 
-  
   if (options[:near_file] && options[:near_coordinate])
     abort("--near-file and --near-coordinate can't be used at the same time")
   end
@@ -83,7 +82,7 @@ if !File.file?(SHAPE_FILE)
   abort("Cannot find " + SHAPE_FILE + ". Please download it from " + "http://thematicmapping.org/downloads/world_borders.php " + "and try again.")
 end
 
-def get_borders(iso2)
+def get_country_borders(iso2)
   RGeo::Shapefile::Reader.open('TM_WORLD_BORDERS-0.3.shp') do |file|
     puts "File contains #{file.num_records} records."
     file.each do |record|
@@ -94,8 +93,8 @@ def get_borders(iso2)
   end
 end
 
-def random_coord_within_borders(borders)
-  factory = RGeo::Cartesian.factory  
+def random_coord_within_county(country_borders)
+  factory = RGeo::Cartesian.factory
   rand_x = rand_y = nil
 
   while true
@@ -107,11 +106,11 @@ def random_coord_within_borders(borders)
       rand_x = rand((delta_rand[1].to_f - $args[:distance])..(delta_rand[1].to_f + $args[:distance]))
       rand_y = rand((delta_rand[0].to_f - $args[:distance])..(delta_rand[0].to_f + $args[:distance]))
     else
-      rand_x = rand(borders.min_x..borders.max_x)
-      rand_y = rand(borders.min_y..borders.max_y)
+      rand_x = rand(country_borders.min_x..country_borders.max_x)
+      rand_y = rand(country_borders.min_y..country_borders.max_y)
     end
     point = factory.point(rand_x, rand_y)
-    if borders.contains?(point)
+    if country_borders.contains?(point)
       break
     end
   end
@@ -173,11 +172,11 @@ def test_google2(lat, lng)
 end
 
 p [__LINE__, "Finding country borders"]
-borders = get_borders($args[:iso2])
+country_borders = get_country_borders($args[:iso2])
 
 while true
   tries += 1
-  coord = random_coord_within_borders(borders)
+  coord = random_coord_within_county(country_borders)
   # r = test_google(coord[0], coord[1])
   r = test_google2(coord[0], coord[1])
   if r
