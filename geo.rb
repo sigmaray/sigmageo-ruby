@@ -18,30 +18,40 @@ def parse_args
     opts.on("-f", "--near-file", "Find near coordinates that can be found in COUNTRY_ISO2.csv.") do |nf|
       options[:near_file] = nf
     end
-  
-    opts.on("-c", "--near-coordinate COORD", "Find near coordinates that can be found near COORD. In 'lat,lng' format. Example: 45.2796196,-91.8236504.") do |coord|
+
+    opts.on("-c", "--near-coordinate COORD", "Find near coordinates that can be found near COORD. In 'lat,lng' format. Example: geo.rb US -c 45.2796196,-91.8236504.") do |coord|
       options[:near_coordinate] = coord.split(',').map(&:to_f)
-      abort('Wrong options passed for -near_coordinate. Example: 45.2796196,-91.8236504  ') if options[:near_coordinate] != 2
+      abort('Wrong options passed for --near_coordinate. Example: geo.rb US -c 45.2796196,-91.8236504  ') if options[:near_coordinate].count != 2
     end
 
     opts.on("-d", "--distance DISTANCE", "To be used in pair with --near-file or --near-coordinate. Specifies distance of lat/lng neighbourhood. Default value is 0.1.") do |delta|
       options[:distance] = delta
-      abort("--delta should be used in pair with --near-file or --near-coordinate.") if !options[:near_file] || !options[:near_coordinate]
-    end    
+    end
   end.parse!
 
-  # p options
   options[:iso2] = ARGV.select{ |item| !item.start_with?('-') }.first
   options[:help] = ARGV.select{ |item| item.include?('-h') }.present?
-  p options
+
+  p [__LINE__, options]
+
   if options[:iso2].blank? && options[:help].blank?
-    p 'COUNTRY_ISO2 is required'
-    abort("Where is my hat?!") 
+    abort 'COUNTRY_ISO2 is required'
+    # abort("Where is my hat?!") 
   end
+
+  
+  if (options[:near_file] && options[:near_coordinate])
+    abort("--near-file and --near-coordinate can't be used at the same time")
+  end
+
+  if options[:delta] && !options[:near_file] && !options[:near_coordinate]
+    abort("--delta should be used in pair with --near-file or --near-coordinate.")
+  end
+
   options
 end
 
-args = parse_args
+$args = parse_args
 
 tries = 0
 succesfull = 0
@@ -57,7 +67,7 @@ require 'geocoder'
 
 def load_csv
   p [__LINE__, 'Loading CSV']
-  delta_file = "rec/#{parse_args[:iso2]}.csv"
+  delta_file = "rec/#{$args[:iso2]}.csv"
   abort 'no delta file, exiting' if !File.file?(delta_file)
   csv_arr = []
   CSV.foreach(delta_file, headers: false) do |row|
@@ -89,13 +99,13 @@ def random_coord_within_borders(borders)
   rand_x = rand_y = nil
 
   while true
-    if parse_args[:near_coordinate]
-      rand_x = rand((parse_args[:near_coordinate][1].to_f - parse_args[:distance])..(parse_args[:near_coordinate][1].to_f + parse_args[:distance]))
-      rand_y = rand((parse_args[:near_coordinate][0].to_f - parse_args[:distance])..(parse_args[:near_coordinate][0].to_f + parse_args[:distance]))
-    elsif parse_args[:near_file]
+    if $args[:near_coordinate]
+      rand_x = rand(($args[:near_coordinate][1].to_f - $args[:distance])..($args[:near_coordinate][1].to_f + $args[:distance]))
+      rand_y = rand(($args[:near_coordinate][0].to_f - $args[:distance])..($args[:near_coordinate][0].to_f + $args[:distance]))
+    elsif $args[:near_file]
       delta_rand = load_csv.sample
-      rand_x = rand((delta_rand[1].to_f - parse_args[:distance])..(delta_rand[1].to_f + parse_args[:distance]))
-      rand_y = rand((delta_rand[0].to_f - parse_args[:distance])..(delta_rand[0].to_f + parse_args[:distance]))
+      rand_x = rand((delta_rand[1].to_f - $args[:distance])..(delta_rand[1].to_f + $args[:distance]))
+      rand_y = rand((delta_rand[0].to_f - $args[:distance])..(delta_rand[0].to_f + $args[:distance]))
     else
       rand_x = rand(borders.min_x..borders.max_x)
       rand_y = rand(borders.min_y..borders.max_y)
@@ -155,7 +165,7 @@ def test_google2(lat, lng)
         p [__LINE__, 'Not found by regex.']
         return false
       end
-    end    
+    end
   rescue Exception => err
     p [__LINE__, {err: err}]
     return false
@@ -163,7 +173,7 @@ def test_google2(lat, lng)
 end
 
 p [__LINE__, "Finding country borders"]
-borders = get_borders(parse_args[:iso2])
+borders = get_borders($args[:iso2])
 
 while true
   tries += 1
@@ -191,28 +201,29 @@ while true
       next
     end
 
-    if geocode_country_code_upcase != parse_args[:iso2]
+    if geocode_country_code_upcase != $args[:iso2]
       p [__LINE__, 'Reverse geocode returned different country code: ' + geocode_country_code_upcase.to_s]
     else
       p [__LINE__, '!!! Found !!!']
       succesfull += 1
       last_succesfull = Time.new
-      near_coordinate = parse_args[:near_coordinate].nil? ? '' : '.near-coordinate'
-      File.open("rec/#{parse_args[:iso2]}#{sese}.csv",'a') { |file|
+      near_coordinate = $args[:near_coordinate].blank? ? '' : '.near-coordinate'
+      near_file = $args[:near_file].blank? ? '' : '.near-file'
+      File.open("rec/#{$args[:iso2]}#{near_coordinate}#{near_file}.csv",'a') { |file|
         l = [
           coord[0],
           coord[1],
-          parse_args[:near_coordinate],
+          $args[:near_coordinate],
           DateTime.now.new_offset(0).to_s,
           geocode_country_code,
           d["display_name"]]
         file.puts CSV.generate_line(l)
       }
-      File.open("rec/#{parse_args[:iso2]}#{sese}.json",'a') { |file|      
+      File.open("rec/#{$args[:iso2]}#{near_coordinate}#{near_file}.json",'a') { |file|      
         tj = {
           lat: coord[0],
           lng: coord[1],
-          near: parse_args[:near_coordinate],
+          near: $args[:near_coordinate],
           geocode_country_code: geocode_country_code,
           geocode_display_name: d["display_name"],
           created_at: DateTime.now.new_offset(0).to_s,
@@ -220,10 +231,10 @@ while true
         }
         file.puts tj.to_json
       }
-      File.open("rec/#{parse_args[:iso2]}#{sese}.htm",'a') {|file| file.puts "<p>#{d["display_name"]}: <a href=\"#{uuu}\">#{uuu}</a></p>\r\n" }
+      File.open("rec/#{$args[:iso2]}#{near_coordinate}#{near_file}.htm",'a') {|file| file.puts "<p>#{d["display_name"]}: <a href=\"#{uuu}\">#{uuu}</a></p>\r\n" }
     end
   end
   succes_rate = (succesfull.to_f / tries.to_f * 100).to_i.to_s + '%'
-  p [__LINE__, ['parse_args[:iso2]', 'parse_args[:near_coordinate]', 'tries', 'succesfull', 'succes_rate', 'last_succesfull'].map{ |e| { e => eval(e) } }.inject(:merge)]
+  p [__LINE__, ['$args[:iso2]', '$args[:near_coordinate]', 'tries', 'succesfull', 'succes_rate', 'last_succesfull'].map{ |e| { e => eval(e) } }.inject(:merge)]
   sleep 1
 end
