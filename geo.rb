@@ -33,7 +33,7 @@ def get_options
     end
 
     opts.on("-d", "--distance DISTANCE", "To be used in pair with --near-file or --near-coordinate. Specifies distance of lat/lng neighbourhood. Default value is 0.1.") do |distance|
-      $options[:distance] = distance
+      $options[:distance] = distance.to_f
     end
   end.parse!
 
@@ -166,7 +166,8 @@ stat_tries = 0
 stat_succes_count  = 0
 stat_succes_last_time = nil
 
-while true  
+while true
+  stat_tries += 1
   random_coord = random_coord_within_county(country_borders)
   # google_coord = test_google(coord[0], coord[1])
   google_coord = test_google2(random_coord[0], random_coord[1])
@@ -186,6 +187,9 @@ while true
       p [__LINE__, 'Reverse geocode returned different country code: ' + geocode_country_code_upcase.to_s]
     else
       p [__LINE__, 'Found coordinate!']
+
+      stat_succes_last_time = Time.new
+      stat_succes_count  += 1
 
       ext_near_coordinate = get_options[:near_coordinate].blank? ? '' : '.near-coordinate'
       ext_near_file = get_options[:near_file].blank? ? '' : '.near-file'
@@ -214,13 +218,10 @@ while true
         file.puts tj.to_json
       }
       url = "https://maps.google.com/maps?q=&layer=c&cbll=#{google_coord[0]},#{google_coord[1]}"
-      File.open("rec/#{get_options[:iso2]}#{near_coordinate}#{near_file}.htm",'a') {|file| file.puts "<p>#{geocoder_data["display_name"]}: <a href=\"#{url}\">#{url}</a></p>\r\n" }
+      File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file}.htm",'a') {|file| file.puts "<p>#{geocoder_data["display_name"]}: <a href=\"#{url}\">#{url}</a></p>\r\n" }
     end
   end
-
-  stat_tries += 1
-  stat_succes_last_time = Time.new
-  stat_succes_count  += 1
+  
   stat_succes_rate = (stat_succes_count.to_f / stat_tries.to_f * 100).to_i.to_s + '%'  
   p [__LINE__, ['get_options[:iso2]', 'get_options[:near_coordinate]', 'stat_tries', 'stat_succes_count', 'stat_succes_rate', 'stat_succes_last_time'].map{ |e| { e => eval(e) } }.inject(:merge)]
 
