@@ -18,12 +18,12 @@ def get_options
   $options[:iso2] = ''
   $options[:near_coordinate] = nil
   $options[:near_file] = false
-  $options[:distance] = 0.1
+  $options[:distance] = nil
 
   OptionParser.new do |opts|
     opts.banner = "Usage: geo.rb COUNTRY_ISO2 [options]"
 
-    opts.on("-f", "--near-file", "Find near coordinates that can be found in COUNTRY_ISO2.csv.") do |nf|
+    opts.on("-f", "--near-file", "Find near coordinates from %COUNTRY_ISO2%.csv.") do |nf|
       $options[:near_file] = nf
     end
 
@@ -32,15 +32,15 @@ def get_options
       abort('Wrong options passed for --near_coordinate. Example: geo.rb US -c 45.2796196,-91.8236504  ') if $options[:near_coordinate].count != 2
     end
 
-    opts.on("-d", "--distance DISTANCE", "To be used in pair with --near-file or --near-coordinate. Specifies distance of lat/lng neighbourhood. Default value is 0.1.") do |delta|
-      $options[:distance] = delta
+    opts.on("-d", "--distance DISTANCE", "To be used in pair with --near-file or --near-coordinate. Specifies distance of lat/lng neighbourhood. Default value is 0.1.") do |distance|
+      $options[:distance] = distance
     end
   end.parse!
 
   $options[:iso2] = ARGV.select{ |item| !item.start_with?('-') }.first
   $options[:help] = ARGV.select{ |item| item.include?('-h') }.present?
 
-  p [__LINE__, $options]
+  p [__LINE__, {'$options' => $options}]
 
   if $options[:iso2].blank? && $options[:help].blank?
     abort 'COUNTRY_ISO2 parameter is required'
@@ -50,9 +50,11 @@ def get_options
     abort("--near-file and --near-coordinate can't be used at the same time")
   end
 
-  if $options[:delta] && !$options[:near_file] && !$options[:near_coordinate]
-    abort("--delta should be used in pair with --near-file or --near-coordinate.")
+  if $options[:distance] && !$options[:near_file] && !$options[:near_coordinate]
+    abort("--distance should be used in pair with --near-file or --near-coordinate.")
   end
+
+  $options[:distance] = 0.1 if $options[:distance].blank?
 
   return $options
 end
@@ -80,11 +82,8 @@ def get_country_borders(iso2)
 end
 
 def random_coord_within_county(country_borders)
-  factory = RGeo::Cartesian.factory
-  rand_x = rand_y = nil
-
   while true
-    if get_options[:near_coordinate]
+    if get_options[:near_coordinate].present?
       rand_x = rand((get_options[:near_coordinate][1].to_f - get_options[:distance])..(get_options[:near_coordinate][1].to_f + get_options[:distance]))
       rand_y = rand((get_options[:near_coordinate][0].to_f - get_options[:distance])..(get_options[:near_coordinate][0].to_f + get_options[:distance]))
     elsif get_options[:near_file]
@@ -95,7 +94,7 @@ def random_coord_within_county(country_borders)
       rand_x = rand(country_borders.min_x..country_borders.max_x)
       rand_y = rand(country_borders.min_y..country_borders.max_y)
     end
-    point = factory.point(rand_x, rand_y)
+    point = RGeo::Cartesian.factory.point(rand_x, rand_y)
     if country_borders.contains?(point)
       break
     end
@@ -104,7 +103,7 @@ def random_coord_within_county(country_borders)
 end
 
 # # There are limits when following this way. I don't know exact limits. But it seems google will allow only 2000 requests per day.
-# # It would be more logical to return true/false. But I return [lat, lng]/false to unify this function with test_google2.
+# # It would be more logical to return true/false. Instead I return [lat, lng]/false to unify this function with test_google2.
 # API_KEY = 'AIzaSyDpFdOYgaCQZCPNeiP0NhnXofDYmCJFaiY';
 # def test_google(rand_y, rand_x)
 #   country_hits = 0
@@ -143,7 +142,7 @@ def test_google2(lat, lng)
       if !reg_results.blank?
         p [__LINE__, 'Found by regex.']
         ar = reg_results.chomp(']').split(',')
-        return [ar[0].to_f, ar[1].to_f] # Returning nearest coordinate.
+        return [ar[0].to_f, ar[1].to_f] # Returning first coordinate from google response.
       else
         p [__LINE__, 'Not found by regex.']
         return false
@@ -156,30 +155,28 @@ def test_google2(lat, lng)
 end
 
 if !File.file?(SHAPE_FILE)
-  abort("Cannot find " + SHAPE_FILE + ". Please download it from " + "http://thematicmapping.org/downloads/world_borders.php " + "and try again.")
+  abort("Cannot find #{SHAPE_FILE}. Please download it from http://thematicmapping.org/downloads/world_borders.php and try again.")
 end
 
 p [__LINE__, "Finding country borders."]
+
 country_borders = get_country_borders(get_options[:iso2])
 
 stat_tries = 0
 stat_succes_count  = 0
 stat_succes_last_time = nil
 
-while true
-  stat_tries += 1
+while true  
   random_coord = random_coord_within_county(country_borders)
-  # coord = test_google(coord[0], coord[1])
+  # google_coord = test_google(coord[0], coord[1])
   google_coord = test_google2(random_coord[0], random_coord[1])
   if google_coord
-    uuu = "http://maps.google.com/maps?q=&layer=c&cbll=#{coord[0]},#{coord[1]}"
-
     begin
-      d = Geocoder.search(google_coord).first.data
-      geocode_json = d.to_json
-      geocode_country_code = d['address']['country_code']
-      geocode_address = d['address']['geocode_address']
-      geocode_country_code_upcase = d['address']['country_code'].upcase
+      geocoder_data = Geocoder.search(google_coord).first.data
+      geocode_json = geocoder_data.to_json
+      geocode_country_code = geocoder_data['address']['country_code']
+      geocode_address = geocoder_data['address']['geocode_address']
+      geocode_country_code_upcase = geocoder_data['address']['country_code'].upcase
     rescue Exception => err
       p [__LINE__, 'Failed to do reverse geocoding.', {err: err}]
       next
@@ -188,37 +185,44 @@ while true
     if geocode_country_code_upcase != get_options[:iso2]
       p [__LINE__, 'Reverse geocode returned different country code: ' + geocode_country_code_upcase.to_s]
     else
-      p [__LINE__, '!!! Found !!!']
-      stat_succes_last_time = Time.new
-      stat_succes_count  += 1
-      near_coordinate = get_options[:near_coordinate].blank? ? '' : '.near-coordinate'
-      near_file = get_options[:near_file].blank? ? '' : '.near-file'
-      File.open("rec/#{get_options[:iso2]}#{near_coordinate}#{near_file}.csv",'a') { |file|
+      p [__LINE__, 'Found coordinate!']
+
+      ext_near_coordinate = get_options[:near_coordinate].blank? ? '' : '.near-coordinate'
+      ext_near_file = get_options[:near_file].blank? ? '' : '.near-file'
+
+      File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file}.csv",'a') { |file|
         l = [
           google_coord[0],
           google_coord[1],
           get_options[:near_coordinate],
           DateTime.now.new_offset(0).to_s,
           geocode_country_code,
-          d["display_name"]]
+          geocoder_data["display_name"]]
         file.puts CSV.generate_line(l)
       }
-      File.open("rec/#{get_options[:iso2]}#{near_coordinate}#{near_file}.json",'a') { |file|      
+
+      File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file}.json",'a') { |file|      
         tj = {
           lat: google_coord[0],
           lng: google_coord[1],
           near: get_options[:near_coordinate],
           geocode_country_code: geocode_country_code,
-          geocode_display_name: d["display_name"],
+          geocode_display_name: geocoder_data["display_name"],
           created_at: DateTime.now.new_offset(0).to_s,
           geocode_json: geocode_json
         }
         file.puts tj.to_json
       }
-      File.open("rec/#{get_options[:iso2]}#{near_coordinate}#{near_file}.htm",'a') {|file| file.puts "<p>#{d["display_name"]}: <a href=\"#{uuu}\">#{uuu}</a></p>\r\n" }
+      url = "https://maps.google.com/maps?q=&layer=c&cbll=#{google_coord[0]},#{google_coord[1]}"
+      File.open("rec/#{get_options[:iso2]}#{near_coordinate}#{near_file}.htm",'a') {|file| file.puts "<p>#{geocoder_data["display_name"]}: <a href=\"#{url}\">#{url}</a></p>\r\n" }
     end
   end
-  succes_rate = (stat_succes_count.to_f / stat_tries.to_f * 100).to_i.to_s + '%'
-  p [__LINE__, ['get_options[:iso2]', 'get_options[:near_coordinate]', 'stat_tries', 'stat_succes_count', 'succes_rate', 'stat_succes_last_time'].map{ |e| { e => eval(e) } }.inject(:merge)]
+
+  stat_tries += 1
+  stat_succes_last_time = Time.new
+  stat_succes_count  += 1
+  stat_succes_rate = (stat_succes_count.to_f / stat_tries.to_f * 100).to_i.to_s + '%'  
+  p [__LINE__, ['get_options[:iso2]', 'get_options[:near_coordinate]', 'stat_tries', 'stat_succes_count', 'stat_succes_rate', 'stat_succes_last_time'].map{ |e| { e => eval(e) } }.inject(:merge)]
+
   sleep SLEEP_SECONDS
 end
