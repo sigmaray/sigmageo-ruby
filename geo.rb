@@ -87,9 +87,9 @@ def random_coord_within_county(country_borders)
       rand_x = rand((get_options[:near_coordinate][1].to_f - get_options[:distance])..(get_options[:near_coordinate][1].to_f + get_options[:distance]))
       rand_y = rand((get_options[:near_coordinate][0].to_f - get_options[:distance])..(get_options[:near_coordinate][0].to_f + get_options[:distance]))
     elsif get_options[:near_file]
-      delta_rand = load_csv.sample
-      rand_x = rand((delta_rand[1].to_f - get_options[:distance])..(delta_rand[1].to_f + get_options[:distance]))
-      rand_y = rand((delta_rand[0].to_f - get_options[:distance])..(delta_rand[0].to_f + get_options[:distance]))
+      csv_rand = load_csv.sample
+      rand_x = rand((csv_rand[1].to_f - get_options[:distance])..(csv_rand[1].to_f + get_options[:distance]))
+      rand_y = rand((csv_rand[0].to_f - get_options[:distance])..(csv_rand[0].to_f + get_options[:distance]))
     else
       rand_x = rand(country_borders.min_x..country_borders.max_x)
       rand_y = rand(country_borders.min_y..country_borders.max_y)
@@ -221,7 +221,7 @@ while true
       File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file}.htm",'a') {|file| file.puts "<p>#{geocoder_data["display_name"]}: <a href=\"#{url}\">#{url}</a></p>\r\n" }
     end
   end
-  
+
   stat_succes_rate = (stat_succes_count.to_f / stat_tries.to_f * 100).to_i.to_s + '%'  
   p [__LINE__, ['get_options[:iso2]', 'get_options[:near_coordinate]', 'stat_tries', 'stat_succes_count', 'stat_succes_rate', 'stat_succes_last_time'].map{ |e| { e => eval(e) } }.inject(:merge)]
 
