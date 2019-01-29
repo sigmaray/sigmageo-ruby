@@ -19,10 +19,15 @@ def get_options
   $options[:near_file_coordinates] = false
   $options[:distance] = 0.1
 
+  $options[:iso2] = ARGV.select{ |item| !item.start_with?('-') }.first
+  $options[:help] = ARGV.select{ |item| item.include?('-h') }.present?
+
+  if $options[:iso2].blank? && $options[:help].blank?
+    ARGV.push('-h')
+  end
 
   usage = "Usage: geo.rb COUNTRY_ISO2 [options]"
-
-  OptionParser.new do |opts|
+  opt_parser = OptionParser.new do |opts|
     opts.banner = usage
 
     opts.on("-f", "--near-file", "Find near coordinates from %COUNTRY_ISO2%.csv.") do |nf|
@@ -37,15 +42,11 @@ def get_options
     opts.on("-d", "--distance DISTANCE", "To be used in pair with --near-file or --near-coordinate. Specifies distance of lat/lng neighbourhood. Default value is 0.1.") do |distance|
       $options[:distance] = distance.to_f
     end
-  end.parse!
-
-  $options[:iso2] = ARGV.select{ |item| !item.start_with?('-') }.first
-  $options[:help] = ARGV.select{ |item| item.include?('-h') }.present?
-
-  if $options[:iso2].blank? && $options[:help].blank?
-    p usage
-    abort 'COUNTRY_ISO2 parameter is required'
   end
+
+  opt_parser.parse!
+
+  abort if $options[:iso2].blank?
 
   if ($options[:near_file_coordinates] && $options[:near_coordinate])
     abort("--near-file and --near-coordinate can't be used at the same time")
