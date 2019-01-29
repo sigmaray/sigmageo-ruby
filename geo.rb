@@ -10,6 +10,7 @@ require 'geocoder'
 
 SHAPE_FILE = "TM_WORLD_BORDERS_SIMPL-0.3.shp"
 SLEEP_SECONDS = 1
+OUTPUT_DIR = 'coordiantes'
 
 def get_options
   $options = {}
@@ -57,7 +58,7 @@ end
 
 def load_csv_with_coordinates
   p [__LINE__, 'Loading CSV file.']
-  file = "rec/#{$options[:iso2]}.csv"
+  file = "#{OUTPUT_DIR}/#{$options[:iso2]}.csv"
   abort 'No CSV file, exiting.' if !File.file?(file)
   csv_arr = []
   CSV.foreach(file, headers: false) do |row|
@@ -99,17 +100,12 @@ def random_coord_within_county(country_borders)
 end
 
 # # There are limits when following this way. I don't know exact limits. But it seems google will allow only 2000 requests per day.
-# # It would be more logical to return true/false. Instead I return [lat, lng]/false to unify this function with test_google2.
+# # It would be more logical to return true/false. Instead I return [lat, lng]/false to unify this function with test_google_2.
 # API_KEY = 'AIzaSyDpFdOYgaCQZCPNeiP0NhnXofDYmCJFaiY';
 # def test_google(rand_y, rand_x)
-#   country_hits = 0
-  
-#   print("  In country")
-#   country_hits += 1
-#   lat_long = "#{rand_y},#{rand_x}"
-#   url = ("http://maps.googleapis.com/maps/api/streetview?sensor=false&" + "size=640x640&key=" + API_KEY) + "&location=" + lat_long
+#   lat_lng = "#{rand_y},#{rand_x}"
+#   url = ("http://maps.googleapis.com/maps/api/streetview?sensor=false&" + "size=640x640&key=" + API_KEY) + "&location=" + lat_lng
 #   p [__LINE__, {url: url}]
-
 #   begin
 #     source = Magick::Image.read(url).first
 #     color =  source.to_color(source.pixel_color(1,1))
@@ -122,7 +118,7 @@ end
 # end
 
 # There are no limits in this approach.
-def test_google2(lat, lng)
+def test_google_2(lat, lng)
   url = "https://maps.googleapis.com/maps/api/js/GeoPhotoService.SingleImageSearch?pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0!2m4!1m2!3d#{lat}!4d#{lng}!2d100!3m18!2m2!1sen!2sUS!9m1!1e2!11m12!1m3!1e2!2b1!3e2!1m3!1e3!2b1!3e2!1m3!1e10!2b1!3e2!4m6!1e1!1e2!1e3!1e4!1e8!1e6&callback=_xdc_._2kz7bz"
 
   begin
@@ -168,7 +164,7 @@ while true
   stat_tries += 1
   random_coord = random_coord_within_county(country_borders)
   # google_coord = test_google(random_coord[0], random_coord[1])
-  google_coord = test_google2(random_coord[0], random_coord[1])
+  google_coord = test_google_2(random_coord[0], random_coord[1])
   if google_coord
     begin
       geocoder_data = Geocoder.search(google_coord).first.data
@@ -192,7 +188,7 @@ while true
       ext_near_coordinate = $options[:near_coordinate].blank? ? '' : '.near-coordinate'
       ext_near_file_coordinates = $options[:near_file_coordinates].blank? ? '' : '.near-file-coordinates'
 
-      File.open("rec/#{$options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.csv",'a') { |file|
+      File.open("#{OUTPUT_DIR}/#{$options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.csv",'a') { |file|
         l = [
           google_coord[0],
           google_coord[1],
@@ -203,7 +199,7 @@ while true
         file.puts CSV.generate_line(l)
       }
 
-      File.open("rec/#{$options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.json",'a') { |file|      
+      File.open("#{OUTPUT_DIR}/#{$options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.json",'a') { |file|      
         tj = {
           lat: google_coord[0],
           lng: google_coord[1],
@@ -216,7 +212,7 @@ while true
         file.puts tj.to_json
       }
       url = "https://maps.google.com/maps?q=&layer=c&cbll=#{google_coord[0]},#{google_coord[1]}"
-      File.open("rec/#{$options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.htm",'a') {|file| file.puts "<p>#{geocoder_data["display_name"]}: <a href=\"#{url}\">#{url}</a></p>\r\n" }
+      File.open("#{OUTPUT_DIR}/#{$options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.htm",'a') {|file| file.puts "<p>#{geocoder_data["display_name"]}: <a href=\"#{url}\">#{url}</a></p>\r\n" }
     end
   end
 
