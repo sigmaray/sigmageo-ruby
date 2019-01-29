@@ -12,8 +12,6 @@ SHAPE_FILE = "TM_WORLD_BORDERS_SIMPL-0.3.shp"
 SLEEP_SECONDS = 1
 
 def get_options
-  return $options if defined?($options)
-
   $options = {}
   $options[:iso2] = ''
   $options[:near_coordinate] = nil
@@ -63,7 +61,7 @@ end
 
 def load_csv_with_coordinates
   p [__LINE__, 'Loading CSV file.']
-  file = "rec/#{get_options[:iso2]}.csv"
+  file = "rec/#{$options[:iso2]}.csv"
   abort 'No CSV file, exiting.' if !File.file?(file)
   csv_arr = []
   CSV.foreach(file, headers: false) do |row|
@@ -85,13 +83,13 @@ end
 
 def random_coord_within_county(country_borders)
   while true
-    if get_options[:near_coordinate].present?
-      rand_x = rand((get_options[:near_coordinate][1].to_f - get_options[:distance])..(get_options[:near_coordinate][1].to_f + get_options[:distance]))
-      rand_y = rand((get_options[:near_coordinate][0].to_f - get_options[:distance])..(get_options[:near_coordinate][0].to_f + get_options[:distance]))
-    elsif get_options[:near_file_coordinates]
+    if $options[:near_coordinate].present?
+      rand_x = rand(($options[:near_coordinate][1].to_f - $options[:distance])..($options[:near_coordinate][1].to_f + $options[:distance]))
+      rand_y = rand(($options[:near_coordinate][0].to_f - $options[:distance])..($options[:near_coordinate][0].to_f + $options[:distance]))
+    elsif $options[:near_file_coordinates]
       csv_rand = load_csv_with_coordinates.sample
-      rand_x = rand((csv_rand[1].to_f - get_options[:distance])..(csv_rand[1].to_f + get_options[:distance]))
-      rand_y = rand((csv_rand[0].to_f - get_options[:distance])..(csv_rand[0].to_f + get_options[:distance]))
+      rand_x = rand((csv_rand[1].to_f - $options[:distance])..(csv_rand[1].to_f + $options[:distance]))
+      rand_y = rand((csv_rand[0].to_f - $options[:distance])..(csv_rand[0].to_f + $options[:distance]))
     else
       rand_x = rand(country_borders.min_x..country_borders.max_x)
       rand_y = rand(country_borders.min_y..country_borders.max_y)
@@ -160,11 +158,11 @@ if !File.file?(SHAPE_FILE)
   abort("Cannot find #{SHAPE_FILE}. Please download it from http://thematicmapping.org/downloads/world_borders.php and try again.")
 end
 
-get_options # Validating arguments.
+$options = get_options
 
 p [__LINE__, "Finding country borders."]
 
-country_borders = get_country_borders(get_options[:iso2])
+country_borders = get_country_borders($options[:iso2])
 
 stat_tries = 0
 stat_succes_count  = 0
@@ -187,7 +185,7 @@ while true
       next
     end
 
-    if geocode_country_code_upcase != get_options[:iso2]
+    if geocode_country_code_upcase != $options[:iso2]
       p [__LINE__, 'Reverse geocode returned different country code: ' + geocode_country_code_upcase.to_s]
     else
       p [__LINE__, 'Found coordinate!']
@@ -195,25 +193,25 @@ while true
       stat_succes_last_time = Time.new
       stat_succes_count  += 1
 
-      ext_near_coordinate = get_options[:near_coordinate].blank? ? '' : '.near-coordinate'
-      ext_near_file_coordinates = get_options[:near_file_coordinates].blank? ? '' : '.near-file-coordinates'
+      ext_near_coordinate = $options[:near_coordinate].blank? ? '' : '.near-coordinate'
+      ext_near_file_coordinates = $options[:near_file_coordinates].blank? ? '' : '.near-file-coordinates'
 
-      File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.csv",'a') { |file|
+      File.open("rec/#{$options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.csv",'a') { |file|
         l = [
           google_coord[0],
           google_coord[1],
-          get_options[:near_coordinate],
+          $options[:near_coordinate],
           DateTime.now.new_offset(0).to_s,
           geocode_country_code,
           geocoder_data["display_name"]]
         file.puts CSV.generate_line(l)
       }
 
-      File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.json",'a') { |file|      
+      File.open("rec/#{$options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.json",'a') { |file|      
         tj = {
           lat: google_coord[0],
           lng: google_coord[1],
-          near: get_options[:near_coordinate],
+          near: $options[:near_coordinate],
           geocode_country_code: geocode_country_code,
           geocode_display_name: geocoder_data["display_name"],
           created_at: DateTime.now.new_offset(0).to_s,
@@ -222,12 +220,12 @@ while true
         file.puts tj.to_json
       }
       url = "https://maps.google.com/maps?q=&layer=c&cbll=#{google_coord[0]},#{google_coord[1]}"
-      File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.htm",'a') {|file| file.puts "<p>#{geocoder_data["display_name"]}: <a href=\"#{url}\">#{url}</a></p>\r\n" }
+      File.open("rec/#{$options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.htm",'a') {|file| file.puts "<p>#{geocoder_data["display_name"]}: <a href=\"#{url}\">#{url}</a></p>\r\n" }
     end
   end
 
   stat_succes_rate = (stat_succes_count.to_f / stat_tries.to_f * 100).to_i.to_s + '%'
-  p [__LINE__, ['get_options[:iso2]', 'get_options[:near_coordinate]', 'stat_tries', 'stat_succes_count', 'stat_succes_rate', 'stat_succes_last_time'].map{ |e| { e => eval(e) } }.inject(:merge)]
+  p [__LINE__, ['$options[:iso2]', '$options[:near_coordinate]', 'stat_tries', 'stat_succes_count', 'stat_succes_rate', 'stat_succes_last_time'].map{ |e| { e => eval(e) } }.inject(:merge)]
 
   sleep SLEEP_SECONDS
 end
