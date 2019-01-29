@@ -20,8 +20,11 @@ def get_options
   $options[:near_file_coordinates] = false
   $options[:distance] = 0.1
 
+
+  usage = "Usage: geo.rb COUNTRY_ISO2 [options]"
+
   OptionParser.new do |opts|
-    opts.banner = "Usage: geo.rb COUNTRY_ISO2 [options]"
+    opts.banner = usage
 
     opts.on("-f", "--near-file", "Find near coordinates from %COUNTRY_ISO2%.csv.") do |nf|
       $options[:near_file_coordinates] = nf
@@ -41,6 +44,7 @@ def get_options
   $options[:help] = ARGV.select{ |item| item.include?('-h') }.present?
 
   if $options[:iso2].blank? && $options[:help].blank?
+    p usage
     abort 'COUNTRY_ISO2 parameter is required'
   end
 
@@ -155,6 +159,8 @@ end
 if !File.file?(SHAPE_FILE)
   abort("Cannot find #{SHAPE_FILE}. Please download it from http://thematicmapping.org/downloads/world_borders.php and try again.")
 end
+
+get_options # Validating arguments.
 
 p [__LINE__, "Finding country borders."]
 
