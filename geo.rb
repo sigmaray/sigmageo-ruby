@@ -17,14 +17,14 @@ def get_options
   $options = {}
   $options[:iso2] = ''
   $options[:near_coordinate] = nil
-  $options[:near_file] = false
-  $options[:distance] = nil
+  $options[:near_file_coordinates] = false
+  $options[:distance] = 0.1
 
   OptionParser.new do |opts|
     opts.banner = "Usage: geo.rb COUNTRY_ISO2 [options]"
 
     opts.on("-f", "--near-file", "Find near coordinates from %COUNTRY_ISO2%.csv.") do |nf|
-      $options[:near_file] = nf
+      $options[:near_file_coordinates] = nf
     end
 
     opts.on("-c", "--near-coordinate COORD", "Find near coordinates that can be found near COORD. In 'lat,lng' format. Example: geo.rb US -c 45.2796196,-91.8236504.") do |coord|
@@ -40,26 +40,24 @@ def get_options
   $options[:iso2] = ARGV.select{ |item| !item.start_with?('-') }.first
   $options[:help] = ARGV.select{ |item| item.include?('-h') }.present?
 
-  p [__LINE__, {'$options' => $options}]
-
   if $options[:iso2].blank? && $options[:help].blank?
     abort 'COUNTRY_ISO2 parameter is required'
   end
 
-  if ($options[:near_file] && $options[:near_coordinate])
+  if ($options[:near_file_coordinates] && $options[:near_coordinate])
     abort("--near-file and --near-coordinate can't be used at the same time")
   end
 
-  if $options[:distance] && !$options[:near_file] && !$options[:near_coordinate]
+  if $options[:distance] && !$options[:near_file_coordinates] && !$options[:near_coordinate]
     abort("--distance should be used in pair with --near-file or --near-coordinate.")
   end
 
-  $options[:distance] = 0.1 if $options[:distance].blank?
+  p [__LINE__, {'$options' => $options}]
 
   return $options
 end
 
-def load_csv
+def load_csv_with_coordinates
   p [__LINE__, 'Loading CSV file.']
   file = "rec/#{get_options[:iso2]}.csv"
   abort 'No CSV file, exiting.' if !File.file?(file)
@@ -86,8 +84,8 @@ def random_coord_within_county(country_borders)
     if get_options[:near_coordinate].present?
       rand_x = rand((get_options[:near_coordinate][1].to_f - get_options[:distance])..(get_options[:near_coordinate][1].to_f + get_options[:distance]))
       rand_y = rand((get_options[:near_coordinate][0].to_f - get_options[:distance])..(get_options[:near_coordinate][0].to_f + get_options[:distance]))
-    elsif get_options[:near_file]
-      csv_rand = load_csv.sample
+    elsif get_options[:near_file_coordinates]
+      csv_rand = load_csv_with_coordinates.sample
       rand_x = rand((csv_rand[1].to_f - get_options[:distance])..(csv_rand[1].to_f + get_options[:distance]))
       rand_y = rand((csv_rand[0].to_f - get_options[:distance])..(csv_rand[0].to_f + get_options[:distance]))
     else
@@ -118,7 +116,7 @@ end
 #     source = Magick::Image.read(url).first
 #     color =  source.to_color(source.pixel_color(1,1))
 #     source.destroy!
-#     return (color != '#E4E3DF' && color != '#E0E0E0') ? [lat, lng] : false
+#     return (color != '#E4E3DF' && color != '#E0E0E0') ? [rand_y, rand_x] : false
 #   rescue Exception => err
 #     p [__LINE__, {err: err}]
 #     return false
@@ -169,7 +167,7 @@ stat_succes_last_time = nil
 while true
   stat_tries += 1
   random_coord = random_coord_within_county(country_borders)
-  # google_coord = test_google(coord[0], coord[1])
+  # google_coord = test_google(random_coord[0], random_coord[1])
   google_coord = test_google2(random_coord[0], random_coord[1])
   if google_coord
     begin
@@ -192,9 +190,9 @@ while true
       stat_succes_count  += 1
 
       ext_near_coordinate = get_options[:near_coordinate].blank? ? '' : '.near-coordinate'
-      ext_near_file = get_options[:near_file].blank? ? '' : '.near-file'
+      ext_near_file_coordinates = get_options[:near_file_coordinates].blank? ? '' : '.near-file-coordinates'
 
-      File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file}.csv",'a') { |file|
+      File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.csv",'a') { |file|
         l = [
           google_coord[0],
           google_coord[1],
@@ -205,7 +203,7 @@ while true
         file.puts CSV.generate_line(l)
       }
 
-      File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file}.json",'a') { |file|      
+      File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.json",'a') { |file|      
         tj = {
           lat: google_coord[0],
           lng: google_coord[1],
@@ -218,11 +216,11 @@ while true
         file.puts tj.to_json
       }
       url = "https://maps.google.com/maps?q=&layer=c&cbll=#{google_coord[0]},#{google_coord[1]}"
-      File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file}.htm",'a') {|file| file.puts "<p>#{geocoder_data["display_name"]}: <a href=\"#{url}\">#{url}</a></p>\r\n" }
+      File.open("rec/#{get_options[:iso2]}#{ext_near_coordinate}#{ext_near_file_coordinates}.htm",'a') {|file| file.puts "<p>#{geocoder_data["display_name"]}: <a href=\"#{url}\">#{url}</a></p>\r\n" }
     end
   end
 
-  stat_succes_rate = (stat_succes_count.to_f / stat_tries.to_f * 100).to_i.to_s + '%'  
+  stat_succes_rate = (stat_succes_count.to_f / stat_tries.to_f * 100).to_i.to_s + '%'
   p [__LINE__, ['get_options[:iso2]', 'get_options[:near_coordinate]', 'stat_tries', 'stat_succes_count', 'stat_succes_rate', 'stat_succes_last_time'].map{ |e| { e => eval(e) } }.inject(:merge)]
 
   sleep SLEEP_SECONDS
