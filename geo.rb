@@ -50,10 +50,6 @@ def get_options
     abort("--near-file and --near-coordinate can't be used at the same time")
   end
 
-  if $options[:distance] && !$options[:near_file_coordinates] && !$options[:near_coordinate]
-    abort("--distance should be used in pair with --near-file or --near-coordinate.")
-  end
-
   p [__LINE__, {'$options' => $options}]
 
   return $options
