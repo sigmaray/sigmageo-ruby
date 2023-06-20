@@ -10,7 +10,7 @@ require 'geocoder'
 
 SHAPE_FILE = "TM_WORLD_BORDERS_SIMPL-0.3.shp"
 SLEEP_SECONDS = 1
-OUTPUT_DIR = 'coordiantes'
+OUTPUT_DIR = 'coordinates'
 
 def get_options
   $options = {}
@@ -69,7 +69,7 @@ def load_csv_with_coordinates
 end
 
 def get_country_borders(iso2)
-  RGeo::Shapefile::Reader.open('TM_WORLD_BORDERS-0.3.shp') do |file|
+  RGeo::Shapefile::Reader.open(SHAPE_FILE) do |file|
     p [__LINE__, "File contains #{file.num_records} records."]
     file.each do |record|
       if record.attributes['ISO2'] == iso2
