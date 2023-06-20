@@ -1,0 +1,15 @@
+services:
+  geo-us: &default
+    build: .
+    volumes:
+      - .:/app
+    command: ["ruby", "sigmageo.rb", "US"]
+  geo-ca:
+    <<: *default
+    command: ["ruby", "sigmageo.rb", "CA"]
+  geo-gb:
+    <<: *default
+    command: ["ruby", "sigmageo.rb", "GB"]
+  geo-ie:
+    <<: *default
+    command: ["ruby", "sigmageo.rb", "IE"]
