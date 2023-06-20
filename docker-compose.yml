@@ -2,7 +2,7 @@ services:
   geo-us: &default
     build: .
     volumes:
-      - .:/app
+      - ./v-coordinates:/app/coordinates
     command: ["ruby", "sigmageo.rb", "US"]
   geo-ca:
     <<: *default
