@@ -14,7 +14,7 @@ RUN bundle install
 
 COPY . .
 
-RUN [ -f TM_WORLD_BORDERS-0.3.shp ] || (wget https://thematicmapping.org/downloads/TM_WORLD_BORDERS-0.3.zip && unzip -o TM_WORLD_BORDERS-0.3.zip)
-RUN [ -f TM_WORLD_BORDERS_SIMPL-0.3.shp ] || (wget https://thematicmapping.org/downloads/TM_WORLD_BORDERS_SIMPL-0.3.zip && unzip -o TM_WORLD_BORDERS_SIMPL-0.3.zip)
+RUN [ -f TM_WORLD_BORDERS-0.3.shp ] || (wget --no-check-certificate https://thematicmapping.org/downloads/TM_WORLD_BORDERS-0.3.zip && unzip -o TM_WORLD_BORDERS-0.3.zip)
+RUN [ -f TM_WORLD_BORDERS_SIMPL-0.3.shp ] || (wget --no-check-certificate https://thematicmapping.org/downloads/TM_WORLD_BORDERS_SIMPL-0.3.zip && unzip -o TM_WORLD_BORDERS_SIMPL-0.3.zip)
 
 CMD ["ruby", "sigmageo.rb"]
