@@ -26,7 +26,8 @@ def get_options
     ARGV.push('-h')
   end
 
-  usage = "Usage: geo.rb COUNTRY_ISO2 [options]"
+  usage = "Usage: ruby sigmageo.rb COUNTRY_ISO2 [options]\n\n"
+  usage += "Example: ruby sigmageo.rb FR\n\n"
   opt_parser = OptionParser.new do |opts|
     opts.banner = usage
 
@@ -34,7 +35,7 @@ def get_options
       $options[:near_file_coordinates] = nf
     end
 
-    opts.on("-c", "--near-coordinate COORD", "Find near coordinates that can be found near COORD. In 'lat,lng' format. Example: geo.rb US -c 45.2796196,-91.8236504.") do |coord|
+    opts.on("-c", "--near-coordinate LAT,LNG", "Find near coordinate (LAT,LNG). Example: geo.rb US -c 45.2796196,-91.8236504.") do |coord|
       $options[:near_coordinate] = coord.split(',').map(&:to_f)
       abort('Wrong options passed for --near_coordinate. Example: geo.rb US -c 45.2796196,-91.8236504  ') if $options[:near_coordinate].count != 2
     end
@@ -148,7 +149,10 @@ def test_google_2(lat, lng)
 end
 
 if !File.file?(SHAPE_FILE)
-  abort("Cannot find #{SHAPE_FILE}. Please download it from http://thematicmapping.org/downloads/world_borders.php and try again.")
+  abort(
+    "Cannot find #{SHAPE_FILE}. Please download it from http://thematicmapping.org/downloads/world_borders.php and try again.\n" + 
+    "You can run `make download-borders`` to download and extract country borders"
+  )
 end
 
 $options = get_options
