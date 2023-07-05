@@ -1,16 +1,20 @@
 version: '3.2'
 services:
   geo-us: &default
+    restart: always
     build: .
     volumes:
       - ./v-coordinates:/app/coordinates
     command: ["ruby", "sigmageo.rb", "US"]
   geo-ca:
+    restart: always
     <<: *default
     command: ["ruby", "sigmageo.rb", "CA"]
   geo-gb:
+    restart: always
     <<: *default
     command: ["ruby", "sigmageo.rb", "GB"]
   geo-ie:
+    restart: always
     <<: *default
     command: ["ruby", "sigmageo.rb", "IE"]
